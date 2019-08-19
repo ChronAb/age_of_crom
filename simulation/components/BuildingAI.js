@@ -37,7 +37,7 @@ BuildingAI.prototype.OnGarrisonedUnitsChanged = function(msg)
 	for (let ent of msg.added)
 	{
 		let cmpIdentity = Engine.QueryInterface(ent, IID_Identity);
-		if (!cmpIdentity)
+		if (msg.visible[ent] || !cmpIdentity)
 			continue;
 		if (MatchesClassList(cmpIdentity.GetClassesList(), classes))
 			++this.archersGarrisoned;
@@ -46,7 +46,7 @@ BuildingAI.prototype.OnGarrisonedUnitsChanged = function(msg)
 	for (let ent of msg.removed)
 	{
 		let cmpIdentity = Engine.QueryInterface(ent, IID_Identity);
-		if (!cmpIdentity)
+		if (msg.visible[ent] || !cmpIdentity)
 			continue;
 		if (MatchesClassList(cmpIdentity.GetClassesList(), classes))
 			--this.archersGarrisoned;

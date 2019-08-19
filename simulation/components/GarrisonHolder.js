@@ -45,6 +45,12 @@ GarrisonHolder.prototype.Schema =
 						"<element name='Z'>" +
 							"<data type='decimal'/>" +
 						"</element>" +
+						"<element name='VisibleGarrisonAllowedClasses'>" +
+							"<attribute name='datatype'>" +
+								"<value>tokens</value>" +
+							"</attribute>" +
+							"<text/>" +
+						"</element>" +
 						"<optional>" +
 							"<element name='Angle' a:help='Angle in degrees relative to the garrisonHolder direction'>" +
 								"<data type='decimal'/>" +
@@ -76,10 +82,11 @@ GarrisonHolder.prototype.Init = function()
 				"offset": {
 					"x": +points[point].X,
 					"y": +points[point].Y,
-					"z": +points[point].Z
+					"z": +points[point].Z,
+					"allowedClasses": points[point].VisibleGarrisonAllowedClasses
 				},
 				"angle": points[point].Angle ? +points[point].Angle * Math.PI / 180 : null,
-				"entity": null
+				"entity": null,
 			});
 	}
 };
@@ -178,6 +185,15 @@ GarrisonHolder.prototype.IsAllowedToGarrison = function(ent)
 	return MatchesClassList(entityClasses, this.template.List._string) && !!Engine.QueryInterface(ent, IID_Garrisonable);
 };
 
+
+/**
+ * Returns true if the unit is allowed be visible on that garrison point, false otherwise.
+ */
+GarrisonHolder.prototype.AllowedToVisibleGarrisoning = function (visibleGarrisonPoint, entity)
+{
+	return MatchesClassList(Engine.QueryInterface(entity, IID_Identity).GetClassesList(), visibleGarrisonPoint.offset.allowedClasses._string);
+};
+
 /**
  * Garrison a unit inside. The timer for AutoHeal is started here.
  * @param {number} vgpEntity - The visual garrison point that will be used.
@@ -199,11 +215,15 @@ GarrisonHolder.prototype.Garrison = function(entity, vgpEntity)
 		{
 			if (vgp.entity)
 				continue;
-			visibleGarrisonPoint = vgp;
-			break;
+
+			if (this.AllowedToVisibleGarrisoning(vgp, entity))
+			{
+				visibleGarrisonPoint = vgp;
+				break;
+			}
 		}
 
-	if (visibleGarrisonPoint)
+	if (visibleGarrisonPoint && this.AllowedToVisibleGarrisoning(visibleGarrisonPoint, entity))
 	{
 		visibleGarrisonPoint.entity = entity;
 		// Angle of turrets:
@@ -228,6 +248,14 @@ GarrisonHolder.prototype.Garrison = function(entity, vgpEntity)
 	else
 		cmpPosition.MoveOutOfWorld();
 
+	let visible = {};
+	visible[entity] = this.IsVisiblyGarrisoned(entity);
+	// Should only be called after the garrison has been performed else the visible Garrison Points are not updated yet.
+	Engine.PostMessage(this.entity, MT_GarrisonedUnitsChanged, {
+		"added": [entity],
+		"removed": [],
+		"visible": visible
+	});
 	return true;
 };
 
@@ -268,7 +296,6 @@ GarrisonHolder.prototype.PerformGarrison = function(entity)
 	if (cmpAura && cmpAura.HasGarrisonAura())
 		cmpAura.ApplyGarrisonBonus(this.entity);
 
-	Engine.PostMessage(this.entity, MT_GarrisonedUnitsChanged, { "added": [entity], "removed": [] });
 	return true;
 };
 
@@ -313,6 +340,14 @@ GarrisonHolder.prototype.Eject = function(entity, forced)
 	let cmpEntPosition = Engine.QueryInterface(entity, IID_Position);
 	let cmpEntUnitAI = Engine.QueryInterface(entity, IID_UnitAI);
 
+	let visible = {};
+	visible[entity] = this.IsVisiblyGarrisoned(entity);
+	// Should only be called before the ejection has been performed else the visible Garrison Points will be empty.
+	Engine.PostMessage(this.entity, MT_GarrisonedUnitsChanged, {
+		"added": [],
+		"removed": [entity],
+		"visible": visible
+	});
 	for (let vgp of this.visibleGarrisonPoints)
 	{
 		if (vgp.entity != entity)
@@ -345,7 +380,6 @@ GarrisonHolder.prototype.Eject = function(entity, forced)
 	if (cmpPosition)
 		cmpEntPosition.SetYRotation(cmpPosition.GetPosition().horizAngleTo(pos));
 
-	Engine.PostMessage(this.entity, MT_GarrisonedUnitsChanged, { "added": [], "removed": [entity] });
 
 	return true;
 };
@@ -581,7 +615,13 @@ GarrisonHolder.prototype.OnGlobalOwnershipChanged = function(msg)
 		if (cmpHealth && cmpHealth.GetHitpoints() == 0)
 		{
 			this.entities.splice(entityIndex, 1);
-			Engine.PostMessage(this.entity, MT_GarrisonedUnitsChanged, { "added": [], "removed": [msg.entity] });
+			let visible = {};
+			visible[msg.entity] = this.IsVisiblyGarrisoned(msg.entity);
+			Engine.PostMessage(this.entity, MT_GarrisonedUnitsChanged, {
+				"added": [],
+				"removed": [msg.entity],
+				"visible": visible
+			});
 			this.UpdateGarrisonFlag();
 
 			for (let point of this.visibleGarrisonPoints)
@@ -595,6 +635,8 @@ GarrisonHolder.prototype.OnGlobalOwnershipChanged = function(msg)
 
 /**
  * Update list of garrisoned entities if one gets renamed (e.g. by promotion).
+ * vgpEntity is only defined in some peculiar case where we want to reuse the same visibleGarrisonPoint,
+ * in case of promotion for example, and thus should always be allowed.
  */
 GarrisonHolder.prototype.OnGlobalEntityRenamed = function(msg)
 {
@@ -670,8 +712,27 @@ GarrisonHolder.prototype.EjectOrKill = function(entities)
 	}
 
 	if (killedEntities.length)
-		Engine.PostMessage(this.entity, MT_GarrisonedUnitsChanged, { "added": [], "removed": killedEntities });
+	{
+		let visibleEntitiesIds = {};
+		for (let ent of killedEntities)
+			visibleEntitiesIds[ent] = this.IsVisiblyGarrisoned(ent);
+		Engine.PostMessage(this.entity, MT_GarrisonedUnitsChanged, {
+			"added": [],
+			"removed": killedEntities,
+			"visible": visibleEntitiesIds
+		});
+	}
 	this.UpdateGarrisonFlag();
+};
+
+/**
+* Gives insight about the unit type of garrisoning.
+* @return{bool} returns true if the unit is visible on the structure
+* @param {int} the entity's id
+*/
+GarrisonHolder.prototype.IsVisiblyGarrisoned = function (entity)
+{
+	return this.visibleGarrisonPoints.some(point => point.entity == entity);
 };
 
 GarrisonHolder.prototype.IsEjectable = function(entity)
