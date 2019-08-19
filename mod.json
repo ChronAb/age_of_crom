@@ -1,0 +1,7 @@
+{
+	"name": "Age_of_Crom",
+	"version": "0.0.1",
+	"label": "Age of Crom (Conan the Barbarian total conversion)",
+	"description": "A total conversion of 0 AD, based primarily on the setting and characters in the public domain writings of Robert E. Howard. Featuring his character Conan the Cimmerian.",
+	"dependencies": ["0ad>=0.0.23"]
+}
