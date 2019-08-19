@@ -10,13 +10,13 @@
     <default>
       <Obstructions>pathfinding</Obstructions>
       <MaxWaterDepth>2</MaxWaterDepth>
-      <MaxTerrainSlope>1.0</MaxTerrainSlope>
-      <Clearance>0.8</Clearance>
+      <MaxTerrainSlope>0.7</MaxTerrainSlope>
+      <Clearance>1.5</Clearance>
     </default>
     <large>
       <Obstructions>pathfinding</Obstructions>
       <MaxWaterDepth>2</MaxWaterDepth>
-      <MaxTerrainSlope>1.0</MaxTerrainSlope>
+      <MaxTerrainSlope>0.7</MaxTerrainSlope>
       <Clearance>3.0</Clearance>
     </large>
     <ship>
@@ -41,7 +41,7 @@
       <Obstructions>foundation</Obstructions>
       <MaxWaterDepth>0</MaxWaterDepth>
       <MinShoreDistance>4.0</MinShoreDistance>
-      <MaxTerrainSlope>1.0</MaxTerrainSlope>
+      <MaxTerrainSlope>0.5</MaxTerrainSlope>
     </building-land>
     <building-shore>
       <Obstructions>foundation</Obstructions>
@@ -64,7 +64,7 @@
     <default-terrain-only>
       <Obstructions>none</Obstructions>
       <MaxWaterDepth>2</MaxWaterDepth>
-      <MaxTerrainSlope>1.0</MaxTerrainSlope>
+      <MaxTerrainSlope>0.7</MaxTerrainSlope>
     </default-terrain-only>
     <ship-terrain-only>
       <Obstructions>none</Obstructions>
